@@ -1,104 +1,129 @@
-## Architecture & Design
+Architecture & Design
 
-NexFlow is structured as a decoupled, multi-service system rather than a monolithic
-script or a thin API wrapper over an LLM. The goal was to demonstrate how
-individual components can evolve, be tested, and be replaced independently.
+NexFlow is a local-first AI operations demo designed to showcase structured system design, agent orchestration, containerized deployment, and cost-aware architecture decisions.
 
----
+Rather than acting as a thin API wrapper over an LLM, the project is structured as a decoupled, observable multi-service system.
 
-### System Overview
+1. Systems Architecture
 
-The system is composed of four loosely coupled layers:
+NexFlow is designed as a modular ecosystem rather than a monolithic script.
 
-| Layer | Responsibility |
-|---|---|
-| Frontend UI | Stateless presentation; renders responses and streams live backend logs |
-| FastAPI Backend | Async routing, input validation, workflow triggering, log streaming |
-| RAG Pipeline | Document ingestion, chunking, embedding, ChromaDB retrieval |
-| Data Processing | Deterministic CSV transformations via Python + Pandas (no LLM dependency) |
+Frontend UI
 
-Keeping the data processing layer completely isolated from the AI components
-means structured transformations stay reproducible and independently testable —
-a deliberate design choice, not an afterthought.
+A stateless presentation layer responsible only for user interaction and real-time log visualization.
 
----
+FastAPI Backend
 
-### 2. Agent Orchestration
+Acts as an intermediary layer handling:
 
-NexFlow uses LangGraph for workflow orchestration rather than running a single
-flat conversational loop.
+Async API routing
 
-**Separation of Concerns**
-- One node handles conversational RAG Q&A
-- A separate, isolated node handles deterministic structured parsing
+Input validation
 
-**Context-Based Routing**
-The workflow evaluates user intent and routes execution between nodes based on
-explicitly defined conditions — not arbitrary branching.
+Workflow triggering
 
-**Structured Outputs**
-Pydantic schemas enforce a fixed JSON structure on LLM outputs, enabling reliable
-integration with external systems such as Jira or Salesforce. Validation guarantees
-structure — not semantic perfection — and that distinction is intentional.
+Structured response handling
 
----
+Real-time log streaming to the frontend
 
-### 3. Deployment Model
+RAG Pipeline
 
-The system is fully containerized to simulate production-style service isolation.
+Document ingestion and semantic chunking (LangChain)
 
-**Dockerized Backend**
-FastAPI runs on a minimal `python:3.11-slim` base image to keep the container
-footprint small.
+Local embedding generation
 
-**Multi-Container Setup**
-The FastAPI backend and the Ollama model server run in separate containers,
-fully independent of each other, managed via `docker-compose`.
+Storage in ChromaDB
 
-**Environment Configuration**
-Model endpoints, vector store paths, and network ports are all injected via
-environment variables — no hardcoded values anywhere in the codebase.
+Context retrieval for grounded responses
 
-> This setup demonstrates deployment awareness. It does not yet include
-> production-grade monitoring, autoscaling policies, or authentication layers —
-> those are the clear and honest next steps.
+Data Processing Layer
 
----
+A deterministic Python + Pandas pipeline processes structured CSV data independently of the AI components.
+This separation ensures that structured transformations remain reproducible and testable without LLM dependency.
 
-### 4. Cost & Data Considerations
+Observability
 
-**Local Inference**
-By running Ollama and local embeddings (`all-MiniLM-L6-v2`), the framework
-avoids all per-token API fees associated with external LLM providers.
-Operational cost is limited to local compute — CPU/GPU, RAM, and electricity.
+Backend logs stream live to the UI terminal, improving transparency and debuggability across services.
 
-**Data Locality**
-All documents and user interactions remain entirely within the local environment.
+2. Agent Orchestration
 
-> Regulatory compliance (GDPR, HIPAA, etc.) depends on organizational policies,
-> infrastructure security, access controls, and audit processes. This project does
-> not independently guarantee regulatory compliance.
+NexFlow uses LangGraph for workflow orchestration instead of a single conversational loop.
 
----
+Separation of Concerns
 
-### 5. Scaling Pathways
+One node handles conversational RAG Q&A
 
-The current build is optimized for local demonstration. The architecture is
-designed with clear, low-friction pathways for future expansion.
+A separate deterministic node handles structured parsing tasks
 
-**Vector Storage Migration**
-The local ChromaDB instance can be swapped for a distributed vector database
-(e.g., Pinecone, AWS OpenSearch) by updating the `VECTOR_STORE_DIR` in the
-docker-compose environment config.
+Context-Based Routing
 
-**Model Scaling**
-Local inference speed is bound to host hardware. Supporting high-concurrency
-environments would require:
-- Multiple Ollama model server replicas
-- A reverse proxy / load balancer in front of them
-- Dedicated GPU infrastructure
+The workflow can evaluate user intent and route execution between nodes based on defined conditions.
 
-**Data Processing Evolution**
-The current Pandas pipeline runs in memory and handles moderate dataset sizes well.
-For very large datasets (50 GB+), the data-worker node would need either
-chunked processing or migration to a distributed framework such as Apache Spark.
+Structured Outputs
+
+Pydantic schemas enforce structured JSON outputs from LLM responses.
+This enables reliable integration with external systems (e.g., Jira, Salesforce) while acknowledging that validation guarantees structure—not semantic perfection.
+
+3. Deployment Model
+
+The system is containerized to simulate production-like isolation.
+
+Dockerized Backend
+
+Uses a minimal Python runtime image.
+
+Multi-Container Setup
+
+The FastAPI backend and the local model server (Ollama) run in separate containers managed via docker-compose.
+
+Environment Configuration
+
+Configuration such as:
+
+Model endpoints
+
+Vector store paths
+
+Network ports
+
+are injected via environment variables to support portability across environments.
+
+Note: This setup demonstrates deployment awareness but does not yet include production-grade monitoring, autoscaling policies, or authentication layers.
+
+4. Cost & Data Considerations
+Local Inference Model
+
+By leveraging Ollama and local embeddings (all-MiniLM-L6-v2), the framework avoids per-token API fees associated with external LLM providers.
+
+There are no external API costs; operational cost is limited to local compute resources.
+
+Data Locality
+
+All documents and interactions remain within the local environment.
+
+Regulatory compliance (e.g., GDPR, HIPAA) depends on organizational policies, infrastructure security, access controls, and audit processes.
+This project does not independently guarantee regulatory compliance.
+
+5. Scaling Pathways
+
+While optimized for local demonstration, the architecture allows for future expansion.
+
+Vector Storage Migration
+
+The local ChromaDB instance can be replaced with a distributed vector database (e.g., Pinecone, OpenSearch) if horizontal scaling is required.
+
+Model Scaling
+
+Local inference speed depends on host hardware.
+In high-concurrency environments, scaling would require:
+
+Multiple model server replicas
+
+Load balancing
+
+Dedicated GPU infrastructure
+
+Data Processing Evolution
+
+The current Pandas pipeline operates in memory and is suitable for moderate datasets.
+For large-scale datasets (50GB+), this layer would require chunked processing or migration to distributed frameworks (e.g., Apache Spark).
